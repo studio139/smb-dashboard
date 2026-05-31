@@ -64,19 +64,31 @@ def test_structure_no_pdf(ctx=None):
 
 
 def test_structure_outputs_clean(ctx=None):
+    """outputs/ is organized year / type / period; every leaf period folder holds exactly
+    one xlsx + one html and nothing else (no loose files at any level, valid names)."""
     ctx = ctx or get_ctx()
     base = os.path.join(ROOT, "outputs")
-    for name in os.listdir(base):
-        if name.startswith("_"):           # scratch (e.g. _test) is not a deliverable
+    types = {_nfc(t) for t in (sc.TYPE_MONTHLY, sc.TYPE_QUARTERLY, sc.TYPE_ANNUAL)}
+    for year in os.listdir(base):
+        if year.startswith("_"):           # scratch (e.g. _test) is not a deliverable
             continue
-        full = os.path.join(base, name)
-        check(os.path.isdir(full), "loose file directly under outputs/: %s" % name)
-        check(re.fullmatch(r"\d{4}-\d{2}|\d{4}-Q\d|\d{4}", name), "unexpected outputs folder: %s" % name)
-        files = os.listdir(full)
-        xlsx = [f for f in files if f.endswith(".xlsx")]
-        htmls = [f for f in files if f.endswith(".html")]
-        check(len(xlsx) == 1 and len(htmls) == 1 and len(files) == 2,
-              "%s: expected exactly 1 xlsx + 1 html, got %r" % (name, files))
+        ypath = os.path.join(base, year)
+        check(os.path.isdir(ypath), "loose file directly under outputs/: %s" % year)
+        check(re.fullmatch(r"\d{4}", year), "unexpected top-level under outputs/: %s" % year)
+        for typ in os.listdir(ypath):
+            tpath = os.path.join(ypath, typ)
+            check(os.path.isdir(tpath), "loose file under outputs/%s/: %s" % (year, typ))
+            check(_nfc(typ) in types, "unexpected type folder under outputs/%s/: %s" % (year, typ))
+            for period in os.listdir(tpath):
+                ppath = os.path.join(tpath, period)
+                check(os.path.isdir(ppath), "loose file under outputs/%s/%s/: %s" % (year, typ, period))
+                check(re.fullmatch(r"\d{4}-\d{2}|\d{4}-Q\d|\d{4}", period),
+                      "unexpected period folder: %s" % period)
+                files = os.listdir(ppath)
+                xlsx = [f for f in files if f.endswith(".xlsx")]
+                htmls = [f for f in files if f.endswith(".html")]
+                check(len(xlsx) == 1 and len(htmls) == 1 and len(files) == 2,
+                      "%s: expected exactly 1 xlsx + 1 html, got %r" % (period, files))
 
 
 def test_structure_html_svg(ctx=None):

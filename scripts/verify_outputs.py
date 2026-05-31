@@ -140,9 +140,10 @@ def main():
        ("ללא ליד" not in miss_join) and ("תואם" not in miss_join),
        f"דוח חוסרים: {miss_join or 'אין'}")
 
-    # structural checks
-    for folder, name in (("2026-Q1", "2026-Q1_רבעוני"), ("2026-04", "2026-04_חודשי")):
-        path = os.path.join(OUT, folder, name + ".xlsx")
+    # structural checks (output paths via the single source of truth in run.py)
+    for rep in (q1, apr):
+        name = run.out_name(rep["zoom"], rep["year"], rep["quarter"], rep["months"])
+        _, path, _, _ = run.output_target(rep)
         if not os.path.isfile(path):
             ok(f"קובץ {name}.xlsx נוצר", False)
             continue

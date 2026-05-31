@@ -159,9 +159,10 @@ def _upload(parent, path, drive_id):
                 pass
 
 
-def to_drive(files, period):
-    """Upload `files` into Drive folder דשבורדים/<period>/ (find-or-create). Verifies by
-    listing the folder afterward. Returns a one-line status string; never raises."""
+def to_drive(files, segments):
+    """Upload `files` into Drive folder דשבורדים/<seg1>/<seg2>/…/ — find-or-create EACH level
+    (e.g. segments = [year, type, period]). Verifies by listing the leaf afterward. Returns a
+    one-line status string; never raises."""
     if not _gws_bin():
         return "Drive upload skipped — gws CLI not found"
     if not _authed():
@@ -170,14 +171,17 @@ def to_drive(files, period):
         drive_id = _drive_id_of(DRIVE_PARENT)
         if not drive_id:
             return "Drive upload skipped — target folder not reachable"
-        dash = _ensure_folder(DRIVE_PARENT, DASHBOARDS_FOLDER, drive_id)
-        period_id = _ensure_folder(dash, period, drive_id) if dash else None
-        if not period_id:
-            return "Drive upload skipped — could not find/create דשבורדים/%s" % period
-        sent = sum(1 for p in files if os.path.exists(p) and _upload(period_id, p, drive_id))
-        names = [f.get("name") for f in _list(period_id, drive_id, fields="files(name)")]
-        return "Drive: %d/%d uploaded to דשבורדים/%s/ — now holds: %s" % (
-            sent, len(files), period, ", ".join(names) if names else "(empty)")
+        chain = [DASHBOARDS_FOLDER] + list(segments)        # דשבורדים → year → type → period
+        rel = "/".join(chain)
+        parent = DRIVE_PARENT
+        for seg in chain:
+            parent = _ensure_folder(parent, seg, drive_id) if parent else None
+        if not parent:
+            return "Drive upload skipped — could not find/create %s" % rel
+        sent = sum(1 for p in files if os.path.exists(p) and _upload(parent, p, drive_id))
+        names = [f.get("name") for f in _list(parent, drive_id, fields="files(name)")]
+        return "Drive: %d/%d uploaded to %s/ — now holds: %s" % (
+            sent, len(files), rel, ", ".join(names) if names else "(empty)")
     except Exception as e:
         return "Drive upload skipped — %s" % e
 

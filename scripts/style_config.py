@@ -113,6 +113,11 @@ DT_PART     = "שתפים"
 DT_TASKS    = "משימות"
 DT_EXPENSES = "הוצאות"   # row-level expenses detail sheet (≠ T_EXP "הוצאות ורווח")
 
+# Output-folder type names — outputs/<year>/<type>/<period>/ (mirrored on Drive)
+TYPE_MONTHLY   = "חודשי"
+TYPE_QUARTERLY = "רבעוני"
+TYPE_ANNUAL    = "שנתי"
+
 # Misc strings
 S_TOTAL   = "סה״כ"
 S_SUMMARY = "סיכום"

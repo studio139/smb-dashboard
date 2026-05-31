@@ -19,18 +19,33 @@ Keep these Hebrew names exactly — they are re-exported under the same names ea
 
 ## Run
 ```
-C:\Python314\python.exe scripts\run.py 2026-Q1    # quarterly (Jan–Mar + summary)
 C:\Python314\python.exe scripts\run.py 2026-04    # monthly (April)
-C:\Python314\python.exe scripts\run.py 2026       # annual
+C:\Python314\python.exe scripts\run.py 2026-03    # monthly + Q1 (closing month — auto roll-up)
+C:\Python314\python.exe scripts\run.py 2026-Q1    # just the quarterly (explicit, on demand)
+C:\Python314\python.exe scripts\run.py 2026       # just the annual (explicit, on demand)
 C:\Python314\python.exe scripts\verify_outputs.py # rebuild + correctness/structure report
 ```
 Deps: `pandas`, `openpyxl` (required); `python-docx` (only to read a *filled* quarterly Word and to
-regenerate the `.docx` guide). Each run writes its own period folder:
-`outputs/<period>/` → `<name>.xlsx` + `.html` preview (e.g. `outputs/2026-Q1/2026-Q1_רבעוני.xlsx`).
-**xlsx + html only — no PDF anywhere.** **No file sits directly under `outputs/`.** `verify_outputs.py`
-writes `verification_report.md` to the project root; `scripts/tests/run_tests.py` is the pass/fail gate
+regenerate the `.docx` guide). Outputs are organized **year → type → period**, identical locally and on
+Drive: `outputs/<year>/<type>/<period>/` → `<name>.xlsx` + `.html` (type ∈ `חודשי`/`רבעוני`/`שנתי`; e.g.
+`outputs/2026/רבעוני/2026-Q1/2026-Q1_רבעוני.xlsx`). **xlsx + html only — no PDF anywhere.** **No loose file
+under a type folder.** `verify_outputs.py` writes `verification_report.md` to the project root;
+`scripts/tests/run_tests.py` is the pass/fail gate
 (numbers · parity · reconciliation · expense-sheet · determinism · structure · business-logic).
 Per-month input folders (`inputs/YYYY-MM/`) are the archive.
+
+### What to generate each month (output rule)
+Run **the month** — a closing month **auto-emits its roll-ups**, so there's nothing extra to remember:
+
+| Month run (`run.py <YYYY-MM>`) | Produces |
+|---|---|
+| Jan · Feb · Apr · May · Jul · Aug · Oct · Nov | monthly |
+| **Mar · Jun · Sep** (quarter close) | monthly **+ quarterly** |
+| **Dec** (quarter + year close) | monthly **+ quarterly (Q4) + annual** |
+
+So `run.py 2026-03` → March monthly **+ Q1**; `run.py 2026-12` → Dec monthly **+ Q4 + 2026 annual**. A
+quarter/annual argument (`2026-Q1`, `2026`) builds only itself (re-generate one on demand). `run.py` also
+takes several arguments at once (batch, e.g. `run.py 2026-01 2026-02`).
 
 ## Monthly run flow (`run.py`)
 1. Locate inputs (`inputs/current/` + root expenses).
@@ -51,14 +66,14 @@ Per-month input folders (`inputs/YYYY-MM/`) are the archive.
    A neutral-gray KPI Δ vs the previous period is shown only when a prior *reporting* period exists.
    The header carries the **studio logo** (HTML: on a white chip in the brand corner, logo-only; Excel:
    an image in the `סקירה` header) and the KPI row sits with clear **breathing room** below the tabs.
-7. **Write** outputs into `outputs/<period>/` with fixed names (**xlsx + html only — no PDF**); the HTML is
+7. **Write** outputs into `outputs/<year>/<type>/<period>/` with fixed names (**xlsx + html only — no PDF**); the HTML is
    a self-contained, deterministic **tabbed interactive BI dashboard** (inline CSS + inline JS for behavior
    + inline SVG charts) built from the same data — **JS drives only interaction/display, never numbers** —
    so every figure matches the Excel by construction. Emit the missing-items report. On quarterly runs,
    also drop a blank next-quarter Word into `inputs/meetings/`.
 8. **Publish & back up (both gated — never fail the run, same pattern as the old optional steps):**
    upload the period's `xlsx`+`html` to Google Drive (Shared-Drive `ניתוחים וישיבות הנהלה` →
-   `דשבורדים/<period>/`, find-or-create) via the **GWS CLI** as `studio@smb-arch.com`; then
+   `דשבורדים/<year>/<type>/<period>/`, find-or-create each level) via the **GWS CLI** as `studio@smb-arch.com`; then
    `git add -A && commit && push` the whole project to the private **GitHub** backup
    (`studio139/smb-dashboard`). On missing tool / no auth / offline each prints a notice and continues.
    *(The GWS OAuth app is now in **Production** — the token no longer expires every 7 days.)* See `publish.py`.
@@ -66,6 +81,15 @@ Per-month input folders (`inputs/YYYY-MM/`) are the archive.
 ## Determinism
 Every number originates in `scripts/metrics.py`. The agent never estimates or hand-places a value.
 Consistency = generator + style frozen → each period looks identical yet adapts to the data.
+
+## Visual / output changes — standing screenshot loop (MANDATORY)
+Whenever you change anything **visual or output-facing** — the HTML dashboard, the Excel layout, charts,
+the logo, or any styling — you MUST work in a **screenshot-iterate loop** before declaring the work done:
+**render → take a screenshot → review it honestly and list every flaw → fix → re-render and re-screenshot →
+repeat** until a fresh screenshot shows no remaining flaws and the result genuinely looks polished
+(**at least 3 iterations**, with no fixed upper limit — the stopping condition is that it *genuinely looks
+good*, not a number of passes). **Show the before → after screenshots.** Tooling: `scripts/screenshot.ps1`
+(Excel sheet→PNG) and headless Edge/Chrome for the HTML (copy the Hebrew `.html` to an ASCII path first).
 
 ## Open schema (incl. employees / מבצע)
 Structure (which dimensions, which metrics) and business logic (statuses, VAT, the two income
@@ -87,8 +111,10 @@ They stay in **separate blocks** — never combined into one figure.
 - Conversion: cohort-anchored to the lead's **arrival** month; last ~3 months flagged
   `עוד מבשיל`; the headline `אחוז המרה` uses **mature cohorts only**. Companion: time-to-close.
 - Join leads↔projects by name (`שם לקוח ↔ לקוח`); an attribution/reconciliation count is emitted.
-- Ranges: leads from 9.25 (Sep–Dec 2025 = lookback for attribution + mature cohorts, **not** report
-  months); projects/income/partnerships/tasks from 1.26; report period = 2026.
+- Ranges: leads **from the start of 2025 (or earlier — whatever exists) = lookback** for attribution +
+  mature-cohort conversion, **not** report-period leads; projects/income/partnerships/tasks from 1.26;
+  report period = 2026. A wider leads history **raises attribution and may shift the settled-conversion
+  rate** (more mature cohorts feed the headline) — expected and correct, **not** an error.
 
 ## Validation (graded — `scripts/validator.py`)
 BLOCKING (stop + explain): whole file missing · required column missing · empty core data ·
