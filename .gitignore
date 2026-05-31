@@ -1,0 +1,18 @@
+# Regenerable / transient — not backed up (reports are also auto-published to Drive)
+outputs/
+verification_report.md
+_test/
+__pycache__/
+*.pyc
+*.pyo
+smbpub_*
+
+# OS / editor temp
+.DS_Store
+Thumbs.db
+desktop.ini
+~$*
+*.tmp
+*.bak
+.vscode/
+.idea/

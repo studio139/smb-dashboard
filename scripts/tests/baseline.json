@@ -1,0 +1,32 @@
+{
+  "2026-Q1": {
+    "leads": 74,
+    "deals": 37,
+    "pipeline_value": 444732.22,
+    "net": 268570.18644067796,
+    "gross": 311936.0,
+    "payments": 52,
+    "expenses_base": 32005.0,
+    "expenses_period": 96015.0,
+    "profit": 172555.18644067796,
+    "tasks": 551,
+    "conversion": 0.08403361344537816,
+    "attr_matched": 15,
+    "attr_total": 25
+  },
+  "2026-04": {
+    "leads": 32,
+    "deals": 14,
+    "pipeline_value": 53515.0,
+    "net": 48300.0,
+    "gross": 56994.0,
+    "payments": 10,
+    "expenses_base": 32005.0,
+    "expenses_period": 32005.0,
+    "profit": 16295.0,
+    "tasks": 202,
+    "conversion": 0.08403361344537816,
+    "attr_matched": 4,
+    "attr_total": 4
+  }
+}
