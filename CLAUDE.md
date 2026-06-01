@@ -64,8 +64,13 @@ takes several arguments at once (batch, e.g. `run.py 2026-01 2026-02`).
    (`פרויקטים · לידים · הכנסות · שתפים · משימות · הוצאות`, frozen header + autofilter) and a hidden
    `נתונים` chart source. The `הוצאות` sheet replicates each fixed expense per month (row sum = the headline).
    A neutral-gray KPI Δ vs the previous period is shown only when a prior *reporting* period exists.
-   The header carries the **studio logo** (HTML: on a white chip in the brand corner, logo-only; Excel:
-   an image in the `סקירה` header) and the KPI row sits with clear **breathing room** below the tabs.
+   The header carries the **studio logo in the top-LEFT corner** (the secondary side in RTL — HTML: on a
+   white chip, logo-only; Excel: an image anchored at the left-edge column), with the issue date on the
+   right; the KPI row sits with clear **breathing room** below the tabs (HTML: `main{padding-block}`, kept
+   separate from `.wrap`'s `padding-inline` so it isn't overridden). The two income pictures are sized so
+   each fills ~half the width with a clean central gutter — title/labels on one line, nothing truncated.
+   The single-month income chart is a **horizontal** net/gross/value composition (labels at the bar ends,
+   axis headroom) so no number collides with the title.
 7. **Write** outputs into `outputs/<year>/<type>/<period>/` with fixed names (**xlsx + html only — no PDF**); the HTML is
    a self-contained, deterministic **tabbed interactive BI dashboard** (inline CSS + inline JS for behavior
    + inline SVG charts) built from the same data — **JS drives only interaction/display, never numbers** —

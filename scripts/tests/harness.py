@@ -127,14 +127,31 @@ def find_header_col(ws, hdr_row, substr):
     return None
 
 
-def matrix_summary_value(ws, label, n_vcols):
-    """Read a matrix row's summary cell (the last value column). For a single-month
-    period (n_vcols==1) that last column IS the month, which equals the total."""
+def matrix_row_values(ws, label, n_vcols):
+    """Ordered numeric value cells of a matrix row, robust to column-SPANNED (merged)
+    cells: the label sits at (r,c) and merged value/label spans leave their covered cells
+    None, so we collect the next `n_vcols` NUMERIC cells to the right (skipping covered
+    None cells — and stopping before any adjacent block's text label). Works for both the
+    span-widened income pictures and the single-column analytics matrices. Returns
+    [month_1, …, month_k, summary] (length n_vcols), or None if the label isn't found."""
     pos = find_label_cell(ws, label)
     if pos is None:
         return None
     r, c = pos
-    return ws.cell(r, c + n_vcols).value
+    vals, col = [], c + 1
+    while col <= ws.max_column and len(vals) < n_vcols:
+        v = ws.cell(r, col).value
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            vals.append(v)
+        col += 1
+    return vals
+
+
+def matrix_summary_value(ws, label, n_vcols):
+    """Read a matrix row's summary cell (the last value column). For a single-month
+    period (n_vcols==1) that last column IS the month, which equals the total."""
+    vals = matrix_row_values(ws, label, n_vcols)
+    return vals[-1] if vals else None
 
 
 def kpi_value(ws, label):

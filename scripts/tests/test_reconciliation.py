@@ -2,7 +2,7 @@
 """Monthly columns sum to the summary column — income A/B, expenses/profit,
 attribution, source, performer. Ratio rows (conversion / pct) are exempt."""
 import harness
-from harness import check, get_ctx, load_ws, find_label_cell, EPS
+from harness import check, get_ctx, load_ws, matrix_row_values, EPS
 from scripts import style_config as sc
 from scripts import viewmodel as vm
 
@@ -44,8 +44,9 @@ def test_reconciliation_xlsx_income(ctx=None):
     n_vcols = len(vm.value_columns(rep))        # 3 months + sum
     ws = load_ws(ctx.paths[harness.Q1]["xlsx"], sc.T_OVERVIEW)
     for label in (sc.M_DEALS, sc.M_PIPEVAL, sc.M_NET, sc.M_GROSS, sc.M_PAYMENTS):
-        r, c = find_label_cell(ws, label)
-        month_sum = sum(ws.cell(r, c + 1 + j).value or 0 for j in range(n_vcols - 1))
-        summary = ws.cell(r, c + n_vcols).value
+        vals = matrix_row_values(ws, label, n_vcols)   # [month_1, month_2, month_3, summary]
+        check(vals is not None and len(vals) == n_vcols,
+              "xlsx %s: row not found / wrong width (%r)" % (label, vals))
+        month_sum, summary = sum(vals[:-1]), vals[-1]
         check(abs(month_sum - summary) <= EPS,
               "xlsx %s: months=%r != summary %r" % (label, month_sum, summary))

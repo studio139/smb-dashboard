@@ -81,7 +81,7 @@ body{font-family:"Segoe UI","Assistant","Rubik",Arial,sans-serif;background:var(
   -webkit-print-color-adjust:exact;print-color-adjust:exact;
   background-image:radial-gradient(rgba(31,58,77,.035) 1px,transparent 1px);background-size:22px 22px}
 .tnum{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
-.wrap{max-width:1320px;margin:0 auto;padding:0 var(--s5)}
+.wrap{max-width:1320px;margin:0 auto;padding-inline:var(--s5)}
 
 /* ---------- sticky header + tabs ---------- */
 .appbar{position:sticky;top:0;z-index:30;color:#fff;
@@ -115,7 +115,10 @@ body{font-family:"Segoe UI","Assistant","Rubik",Arial,sans-serif;background:var(
 .tab:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 
 /* ---------- panels ---------- */
-main{padding:var(--s7) 0 64px}
+/* padding-BLOCK only — `.wrap` owns the inline padding via padding-inline, so the two
+   never clash (an earlier `padding:var(--s7) 0 …` was silently overridden by `.wrap`'s
+   shorthand, collapsing the top gap). 88px = clear breathing room under the dark header. */
+main{padding-block:88px 64px}
 .panel{display:none}
 [data-js] .panel{display:none}
 .panel.active{display:block}
@@ -408,10 +411,12 @@ def build_html(report, data, out_path):
     tabs_html = "".join(
         '<button class="tab" type="button" role="tab" data-tab="{id}">{lab}</button>'.format(id=tid, lab=esc(lab))
         for tid, lab in TABS)
+    # RTL three-zone header: date on the right (start), title centered, logo chip on the
+    # LEFT (end). Flex source-order = right → center → left, so brand comes last.
     P.append('<header class="appbar"><div class="wrap">'
-             '<div class="bar-top"><div class="brand">{brand}</div>'
+             '<div class="bar-top"><div class="gen">עודכן {date}</div>'
              '<div class="ctx"><h1>{kind}</h1><span class="chip tnum">{chip}</span></div>'
-             '<div class="gen">עודכן {date}</div></div>'
+             '<div class="brand">{brand}</div></div>'
              '<nav class="tabs" role="tablist">{tabs}</nav></div></header>'.format(
                  brand=brand, kind=esc(kind_lbl),
                  chip=esc(period_chip), date=esc(today), tabs=tabs_html))

@@ -34,6 +34,7 @@ from scripts import viewmodel as vm
 STUDIO = sc.STUDIO_NAME
 DATA_SHEET = "נתונים"          # hidden chart-source sheet
 NCOLS = 24                      # overview working-grid width (uniform columns)
+LOGO_COL = NCOLS                # header logo anchored at the LEFT corner (RTL end side)
 TREND_COLORS = [sc.PRIMARY, sc.SECONDARY, sc.MUTED]  # ≤2 accents + gray
 
 # semantic-token -> hex resolvers for view-model blocks (the view-model stays palette-free)
@@ -172,16 +173,16 @@ def _title(ws, report):
     ws.row_dimensions[1].height = 32
 
     half = NCOLS // 2
-    # row 2 — studio logo on the brand (right) side replaces the name text; date on the left.
+    # row 2 — studio logo on the LEFT (end side in RTL); date-of-issue on the right.
     today = datetime.date.today().strftime("%d/%m/%Y")
-    _merge(ws, 2, half + 1, 2, NCOLS)
-    _cell(ws, 2, half + 1, sc.S_GENERATED + ": " + sc.lrm(today),
-          fnt=sc.font(sc.SZ_SUBTITLE, False, sc.MUTED), align=sc.left())
-    placed = _logo_image(ws, row=2, height_px=46)
+    _merge(ws, 2, 1, 2, half)
+    _cell(ws, 2, 1, sc.S_GENERATED + ": " + sc.lrm(today),
+          fnt=sc.font(sc.SZ_SUBTITLE, False, sc.MUTED), align=sc.right())
+    placed = _logo_image(ws, row=2, height_px=46, col=LOGO_COL)
     ws.row_dimensions[2].height = 52 if placed else 18
-    if not placed:                       # fallback: keep the name text if the asset is absent
-        _merge(ws, 2, 1, 2, half)
-        _cell(ws, 2, 1, STUDIO, fnt=sc.font(sc.SZ_SUBTITLE, False, sc.MUTED), align=sc.right())
+    if not placed:                       # fallback: name text on the same (left) side
+        _merge(ws, 2, half + 1, 2, NCOLS)
+        _cell(ws, 2, half + 1, STUDIO, fnt=sc.font(sc.SZ_SUBTITLE, False, sc.MUTED), align=sc.left())
 
     # thin accent rule
     _merge(ws, 3, 1, 3, NCOLS)
@@ -256,12 +257,28 @@ def _value_cols(report):
     return vm.value_columns(report)
 
 
-def _matrix_block(ws, top, start, block, vcols, draw_title=True):
+def _put_span(ws, r, c, span, value, fnt, fillc, align, fmt=None):
+    """Write one logical cell anchored at grid col `c`, occupying `span` grid columns.
+    When span>1 the columns are merged and the fill painted across the whole span (so a
+    wide label/value isn't clipped by the uniform 12-unit grid). span==1 → a plain cell,
+    identical to a direct `_cell`, so default-span callers stay byte-identical."""
+    if span > 1:
+        _merge(ws, r, c, r, c + span - 1)
+        if fillc:
+            _fill_range(ws, r, c, r, c + span - 1, fillc)
+    _cell(ws, r, c, value, fmt=fmt, fnt=fnt, fillc=fillc, align=align)
+    return c + span
+
+
+def _matrix_block(ws, top, start, block, vcols, draw_title=True, label_span=1, val_span=1):
     """Render any monthly+summary view-model Block (income pictures, expenses/profit,
     attribution, source, performer). `draw_title` colors a title band in the block's
     header color; pass False when a full-width `_section` band already precedes it.
-    Per-row color (e.g. profit sign) comes from the Row's semantic token."""
-    width = 1 + len(vcols)
+    Per-row color (e.g. profit sign) comes from the Row's semantic token. `label_span`/
+    `val_span` let each logical column occupy several merged grid columns so wide content
+    — e.g. the income-picture titles/labels — fits without wrapping; both default to 1,
+    leaving the analytics matrices byte-identical."""
+    width = label_span + len(vcols) * val_span
     end = start + width - 1
     r = top
     if draw_title:
@@ -272,11 +289,11 @@ def _matrix_block(ws, top, start, block, vcols, draw_title=True):
         r += 1
     # header row
     hr = r
-    _cell(ws, hr, start, sc.S_METRIC, fnt=sc.font(sc.SZ_HEAD, True), fillc=sc.HEADER_FILL, align=sc.right())
-    for j, (kind, m) in enumerate(vcols):
+    c = _put_span(ws, hr, start, label_span, sc.S_METRIC,
+                  sc.font(sc.SZ_HEAD, True), sc.HEADER_FILL, sc.right())
+    for kind, m in vcols:
         lab = sc.S_SUMMARY if kind == "sum" else sc.heb_month(m)
-        _cell(ws, hr, start + 1 + j, lab, fnt=sc.font(sc.SZ_HEAD, True),
-              fillc=sc.HEADER_FILL, align=sc.center())
+        c = _put_span(ws, hr, c, val_span, lab, sc.font(sc.SZ_HEAD, True), sc.HEADER_FILL, sc.center())
     # data rows
     r = hr + 1
     for i, row in enumerate(block.rows):
@@ -285,22 +302,41 @@ def _matrix_block(ws, top, start, block, vcols, draw_title=True):
         lab_fnt = sc.font(sc.SZ_BODY, True, col)
         val_fnt = sc.font(sc.SZ_BODY, True, col) if row.color else None
         fmt = _FMT_XL[row.fmt]
-        _cell(ws, r, start, row.label, fnt=lab_fnt, fillc=band, align=sc.right())
-        for j, (kind, m) in enumerate(vcols):
+        c = _put_span(ws, r, start, label_span, row.label, lab_fnt, band, sc.right())
+        for kind, m in vcols:
             v = row.summary if kind == "sum" else (row.by_month.get(m) if row.by_month else None)
-            _cell(ws, r, start + 1 + j, v, fmt=fmt, fnt=val_fnt, fillc=band, align=sc.center())
+            c = _put_span(ws, r, c, val_span, v, val_fnt, band, sc.center(), fmt=fmt)
+        if label_span > 1 or val_span > 1:        # spaced income rows; analytics keep default height
+            ws.row_dimensions[r].height = 19
         r += 1
     _box(ws, hr, start, r - 1, end, bottom=sc.side_thin())
     return r
 
 
+def _income_layout(n_vcols):
+    """Grid-column spans for the income pictures so each block fills ~half the overview
+    width — title on one line, labels/values padded, nothing clipped — and both blocks
+    come out equal width with a clean central gutter. Adapts to the column count
+    (monthly: one wide value column; quarterly: four narrower month+summary columns)."""
+    gutter = 2
+    block_w = (NCOLS - gutter) // 2                  # target grid-cols per block (= 11)
+    val_span = 2 if n_vcols >= 3 else 4              # wider value cells when few columns
+    label_span = max(3, block_w - n_vcols * val_span)
+    return label_span, val_span
+
+
 def _income_side_by_side(ws, report, top):
     a, b = vm.income_blocks(report)
     vcols = _value_cols(report)
-    # Picture A on the right (col 1), Picture B on the left half — clear central gutter.
-    b_start = max(2 + (1 + len(vcols)), NCOLS // 2 + 1)
-    bottom_a = _matrix_block(ws, top, 1, a, vcols, draw_title=True)
-    bottom_b = _matrix_block(ws, top, b_start, b, vcols, draw_title=True)
+    label_span, val_span = _income_layout(len(vcols))
+    width = label_span + len(vcols) * val_span
+    # Picture A on the right (start col 1); Picture B right-justified to the left edge so
+    # the two are equal width with a clean central gutter between them. (RTL: col 1 = right.)
+    b_start = NCOLS - width + 1
+    bottom_a = _matrix_block(ws, top, 1, a, vcols, draw_title=True,
+                             label_span=label_span, val_span=val_span)
+    bottom_b = _matrix_block(ws, top, b_start, b, vcols, draw_title=True,
+                             label_span=label_span, val_span=val_span)
     return max(bottom_a, bottom_b) + 1
 
 
@@ -384,6 +420,22 @@ def _data_labels(chart, numfmt, position=None):
     chart.dataLabels = dl
 
 
+def _axis_ceiling(v):
+    """Smallest 'nice' axis max (mantissa 1·2·2.5·5·10) ≥ v·1.15 — leaves headroom so an
+    end-of-bar data label never clips the plot edge. Deterministic, presentation-only."""
+    if v is None or v <= 0:
+        return 1
+    target = v * 1.15
+    mag = 1
+    while mag * 10 <= target:
+        mag *= 10
+    for m in (1, 2, 2.5, 5, 10):
+        top = m * mag
+        if top >= target:
+            return int(top) if top == int(top) else top
+    return 10 * mag
+
+
 def _add_charts(ws, ds, tables, report, anchor):
     n = len(report["months"])
     cats = Reference(ds, min_col=1, min_row=2, max_row=1 + n)
@@ -417,10 +469,22 @@ def _add_charts(ws, ds, tables, report, anchor):
         _data_labels(profit, _DLBL_MONEY, "t")
         charts.append(profit)
     else:
+        # Single month: a HORIZONTAL 3-bar composition (net / gross / value) — mirrors the
+        # HTML "הרכב ההכנסה" view. Categories come from the series headers and the single
+        # data row is the one series, so the labels sit at the bar ends with clear room and
+        # never collide with the title or the category axis (the old vertical 3-bar layout
+        # crowded the tallest bar's label into the title). Value axis given nice headroom.
         money = BarChart()
+        money.type = "bar"
         money.title = "הכנסה ושווי לחודש (₪)"
-        money.add_data(Reference(ds, min_col=2, max_col=4, min_row=1, max_row=2), titles_from_data=True)
+        money.add_data(Reference(ds, min_col=2, max_col=4, min_row=2, max_row=2),
+                       from_rows=True, titles_from_data=False)
+        money.set_categories(Reference(ds, min_col=2, max_col=4, min_row=1, max_row=1))
         money.y_axis.scaling.min = 0
+        money.y_axis.scaling.max = _axis_ceiling(max(
+            report["cash"]["net_total"], report["cash"]["gross_total"],
+            report["pipeline"]["value_total"]))
+        money.legend = None
         _style_bars(money, sc.PRIMARY)
         _data_labels(money, _DLBL_MONEY, "outEnd")
         charts.append(money)
