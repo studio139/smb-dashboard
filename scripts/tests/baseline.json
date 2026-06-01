@@ -10,12 +10,12 @@
     "expenses_period": 96015.0,
     "profit": 172555.18644067796,
     "tasks": 551,
-    "conversion": 0.08403361344537816,
-    "attr_matched": 15,
+    "conversion": 0.05090909090909091,
+    "attr_matched": 19,
     "attr_total": 25
   },
   "2026-04": {
-    "leads": 32,
+    "leads": 34,
     "deals": 14,
     "pipeline_value": 53515.0,
     "net": 48300.0,
@@ -24,8 +24,8 @@
     "expenses_base": 32005.0,
     "expenses_period": 32005.0,
     "profit": 16295.0,
-    "tasks": 202,
-    "conversion": 0.08403361344537816,
+    "tasks": 218,
+    "conversion": 0.05090909090909091,
     "attr_matched": 4,
     "attr_total": 4
   }
