@@ -9,6 +9,7 @@ import harness
 from harness import check, get_ctx, ROOT, _nfc
 from openpyxl import load_workbook
 from scripts import style_config as sc
+from scripts import targets
 
 DETAIL = {sc.DT_PROJECTS, sc.DT_LEADS, sc.DT_INCOME, sc.DT_PART, sc.DT_TASKS, sc.DT_EXPENSES}
 
@@ -65,7 +66,8 @@ def test_structure_no_pdf(ctx=None):
 
 def test_structure_outputs_clean(ctx=None):
     """outputs/ is organized year / type / period; every leaf period folder holds exactly
-    one xlsx + one html and nothing else (no loose files at any level, valid names)."""
+    one xlsx + one html (a quarterly folder may also hold its targets Word) and nothing
+    else (no loose files at any level, valid names)."""
     ctx = ctx or get_ctx()
     base = os.path.join(ROOT, "outputs")
     types = {_nfc(t) for t in (sc.TYPE_MONTHLY, sc.TYPE_QUARTERLY, sc.TYPE_ANNUAL)}
@@ -87,8 +89,17 @@ def test_structure_outputs_clean(ctx=None):
                 files = os.listdir(ppath)
                 xlsx = [f for f in files if f.endswith(".xlsx")]
                 htmls = [f for f in files if f.endswith(".html")]
-                check(len(xlsx) == 1 and len(htmls) == 1 and len(files) == 2,
+                docs = [f for f in files if f.endswith(".docx")]
+                other = [f for f in files if not f.endswith((".xlsx", ".html", ".docx"))]
+                check(len(xlsx) == 1 and len(htmls) == 1,
                       "%s: expected exactly 1 xlsx + 1 html, got %r" % (period, files))
+                check(not other, "%s: unexpected loose file(s): %r" % (period, other))
+                # the only extra file allowed is the targets Word, and only in a quarterly folder
+                qm = re.fullmatch(r"(\d{4})-Q(\d)", period)
+                allowed_docs = [targets.targets_doc_name(int(qm.group(1)), int(qm.group(2)))] \
+                    if (qm and _nfc(typ) == _nfc(sc.TYPE_QUARTERLY)) else []
+                check(docs == allowed_docs,
+                      "%s: unexpected .docx — got %r, allowed %r" % (period, docs, allowed_docs))
 
 
 def test_structure_html_svg(ctx=None):
