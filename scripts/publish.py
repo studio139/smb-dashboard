@@ -159,23 +159,30 @@ def _upload(parent, path, drive_id):
                 pass
 
 
+def _resolve_leaf(segments):
+    """Find-or-create דשבורדים/<seg1>/<seg2>/…/ (each level). Returns (parent_id, drive_id, rel);
+    parent_id is None when the chain can't be reached/created."""
+    drive_id = _drive_id_of(DRIVE_PARENT)
+    chain = [DASHBOARDS_FOLDER] + list(segments)        # דשבורדים → year → type → period
+    rel = "/".join(chain)
+    if not drive_id:
+        return None, None, rel
+    parent = DRIVE_PARENT
+    for seg in chain:
+        parent = _ensure_folder(parent, seg, drive_id) if parent else None
+    return parent, drive_id, rel
+
+
 def to_drive(files, segments):
     """Upload `files` into Drive folder דשבורדים/<seg1>/<seg2>/…/ — find-or-create EACH level
-    (e.g. segments = [year, type, period]). Verifies by listing the leaf afterward. Returns a
-    one-line status string; never raises."""
+    (e.g. segments = [year, type, period]). Existing files of the same name are replaced.
+    Verifies by listing the leaf afterward. Returns a one-line status string; never raises."""
     if not _gws_bin():
         return "Drive upload skipped — gws CLI not found"
     if not _authed():
         return "Drive upload skipped — run `gws auth login`"
     try:
-        drive_id = _drive_id_of(DRIVE_PARENT)
-        if not drive_id:
-            return "Drive upload skipped — target folder not reachable"
-        chain = [DASHBOARDS_FOLDER] + list(segments)        # דשבורדים → year → type → period
-        rel = "/".join(chain)
-        parent = DRIVE_PARENT
-        for seg in chain:
-            parent = _ensure_folder(parent, seg, drive_id) if parent else None
+        parent, drive_id, rel = _resolve_leaf(segments)
         if not parent:
             return "Drive upload skipped — could not find/create %s" % rel
         sent = sum(1 for p in files if os.path.exists(p) and _upload(parent, p, drive_id))
@@ -184,6 +191,34 @@ def to_drive(files, segments):
             sent, len(files), rel, ", ".join(names) if names else "(empty)")
     except Exception as e:
         return "Drive upload skipped — %s" % e
+
+
+def to_drive_preserve(files, segments):
+    """Like to_drive, but NEVER overwrites: upload each file ONLY if a file of that name is not
+    already in the leaf folder. Used for the studio-filled targets Word — a doc already on Drive
+    is left untouched (mirrors the local existence guard). Returns a status string; never raises."""
+    if not _gws_bin():
+        return "Drive targets skipped — gws CLI not found"
+    if not _authed():
+        return "Drive targets skipped — run `gws auth login`"
+    try:
+        parent, drive_id, rel = _resolve_leaf(segments)
+        if not parent:
+            return "Drive targets skipped — could not find/create %s" % rel
+        done = []
+        for p in files:
+            if not os.path.exists(p):
+                continue
+            name = os.path.basename(p)
+            if _list(parent, drive_id, name=name):
+                done.append(name + " (kept)")             # already on Drive — never overwrite
+            elif _upload(parent, p, drive_id):
+                done.append(name + " (uploaded)")
+            else:
+                done.append(name + " (failed)")
+        return "Drive targets → %s/: %s" % (rel, ", ".join(done) if done else "(none)")
+    except Exception as e:
+        return "Drive targets skipped — %s" % e
 
 
 # =============================================================== GitHub backup

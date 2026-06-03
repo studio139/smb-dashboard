@@ -22,6 +22,7 @@ from scripts import loader, metrics, validator, targets, generator, preview, run
 from scripts import viewmodel as vm  # noqa: E402
 
 INPUTS = os.path.join(ROOT, "inputs")
+OUTPUTS = os.path.join(ROOT, "outputs")               # targets docs are read forward from here
 TMP = os.path.join(ROOT, "outputs", "_test")          # excluded from the clean-folder check
 BASELINE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "baseline.json")
 Q1, APR = "2026-Q1", "2026-04"
@@ -60,7 +61,7 @@ def full_report(data, report_load, period):
     rep = metrics.compute(data, period)
     _blocking, missing = validator.validate_inputs(data, report_load)
     rep["missing"] = missing + rep["missing"]
-    rep["targets"] = targets.find_targets(INPUTS, period)
+    rep["targets"] = targets.find_targets(OUTPUTS, period)
     rep["prev"] = run._prev_kpis(data, rep)
     return rep
 

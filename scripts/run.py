@@ -129,12 +129,9 @@ def _build(period, data, base_missing, log):
             print("  ! " + b)
         return 2
 
-    # targets: carry-forward the latest FILLED meeting Word (none yet on first build)
-    rep["targets"] = targets.find_targets(INPUTS, period)
-    if rep["zoom"] == "quarterly":
-        emitted = targets.ensure_blank_next_quarter(TEMPLATES, INPUTS, rep["year"], rep["quarter"])
-        if emitted:
-            log.append("emitted blank meeting template: " + emitted)
+    # targets: read forward the PREVIOUS quarter-close doc from the outputs tree (cross-year
+    # aware: Q1 of year Y reads Y-1 Q4). None when that doc is missing or still the blank template.
+    rep["targets"] = targets.find_targets(OUT, period)
 
     # KPI Δ vs previous period (None when no prior reporting period exists)
     rep["prev"] = _prev_kpis(data, rep)
@@ -147,6 +144,17 @@ def _build(period, data, base_missing, log):
     log.append("wrote " + os.path.relpath(htmlp, ROOT))
     # auto-publish this period's files to Drive (gated — never blocks the run)
     log.append(publish.to_drive([xlsx, htmlp], segs))
+
+    # On a quarter close, emit the NEXT quarter's blank targets Word INTO this quarterly output
+    # folder (only if absent — a filled doc is preserved across regeneration), and mirror it to
+    # the same Drive folder without overwriting an existing one. Both gated; never block the run.
+    if rep["zoom"] == "quarterly":
+        emitted = targets.ensure_targets_doc(TEMPLATES, period_dir, rep["year"], rep["quarter"])
+        tpath = os.path.join(period_dir, targets.targets_doc_name(rep["year"], rep["quarter"]))
+        if os.path.isfile(tpath):
+            log.append("targets Word: " + os.path.relpath(tpath, ROOT) +
+                       (" (emitted blank)" if emitted else " (kept existing)"))
+            log.append(publish.to_drive_preserve([tpath], segs))
 
     # ascii-safe key numbers (Hebrew-free) so the console is readable everywhere
     print(f"[{period}] leads={rep['leads']['total']} deals={rep['pipeline']['deals_total']} "

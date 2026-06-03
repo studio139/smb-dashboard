@@ -21,9 +21,10 @@ import test_expense_sheet  # noqa: E402
 import test_determinism  # noqa: E402
 import test_structure  # noqa: E402
 import test_business_logic  # noqa: E402
+import test_targets  # noqa: E402
 
 MODULES = [test_numbers, test_parity, test_reconciliation, test_expense_sheet,
-           test_determinism, test_structure, test_business_logic]
+           test_determinism, test_structure, test_business_logic, test_targets]
 
 
 def main():

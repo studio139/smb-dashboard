@@ -10,6 +10,7 @@ import re
 import shutil
 import unicodedata
 
+from scripts import metrics
 from scripts import style_config as sc
 
 # Word metric label  ->  dashboard metric key. Matching is substring-based (tolerant).
@@ -48,34 +49,46 @@ def _num(text):
         return None
 
 
-def _meeting_docs(inputs_root):
-    """All meeting Word files across inputs/YYYY-MM/, newest month folder first."""
-    found = []
-    if not os.path.isdir(inputs_root):
-        return found
-    for mon in sorted((n for n in os.listdir(inputs_root)
-                       if re.fullmatch(r"\d{4}-\d{2}", n)), reverse=True):
-        d = os.path.join(inputs_root, mon)
-        if not os.path.isdir(d):
-            continue
-        for name in sorted(os.listdir(d)):
-            low = name.lower()
-            if low.endswith(".docx") and not name.startswith("~$") \
-               and ("meeting" in low or "quarter" in low or "רבעון" in name):
-                found.append(os.path.join(d, name))
-    return found
+# the targets Word's filename tag — mirrors TYPE_QUARTERLY ("רבעוני") on that quarter's reports
+TARGETS_SUFFIX = "יעדים"
 
 
-def find_targets(inputs_root, period):
-    """Carry-forward: return {key: value} from the most recent FILLED meeting Word
-    across the per-month folders, or None. A blank template yields no numbers -> None.
-    The quarterly meeting Word lives in the quarter-closing month folder and carries
-    the next quarter's targets; the latest filled one applies until a newer replaces it."""
-    for path in _meeting_docs(inputs_root):
-        t = read_targets(path)
-        if t:
-            return t
-    return None
+def prev_quarter_close(period):
+    """(year, quarter) of the quarter-closing whose targets doc a report READS — the quarter
+    BEFORE the report's own. Cross-year aware: Q1 of year Y reads (Y-1, Q4). Annual → None.
+    A quarter's doc is filled at its close and carries the NEXT quarter's targets, so a report
+    in quarter Q reads quarter Q-1's doc (e.g. April→Q2 reads Q1; January→Q1 reads prior-year Q4)."""
+    zoom, months, year, quarter = metrics.parse_period(period)
+    if zoom == "annual":
+        return None
+    if quarter is None:                                   # monthly: derive the month's quarter
+        quarter = (int(months[0].split("-")[1]) - 1) // 3 + 1
+    if quarter == 1:
+        return (year - 1, 4)
+    return (year, quarter - 1)
+
+
+def targets_doc_name(year, quarter):
+    """The targets Word's filename — mirrors the report naming (e.g. 2026-Q1_יעדים.docx)."""
+    return f"{year}-Q{quarter}_{TARGETS_SUFFIX}.docx"
+
+
+def targets_doc_path(outputs_root, year, quarter):
+    """Full path of a quarter's targets Word in the outputs tree:
+    outputs/<year>/<רבעוני>/<year>-Q<quarter>/<year>-Q<quarter>_יעדים.docx."""
+    leaf = f"{year}-Q{quarter}"
+    return os.path.join(outputs_root, str(year), sc.TYPE_QUARTERLY, leaf, targets_doc_name(year, quarter))
+
+
+def find_targets(outputs_root, period):
+    """Read the targets the report should apply: resolve the PREVIOUS quarter-close doc in the
+    outputs tree (cross-year aware) and parse its table. Returns {key: value} from a FILLED doc,
+    or None when that doc is missing or still the blank template (no crash either way). One doc
+    serves all three months of its target quarter — that single mapping IS the carry-forward."""
+    src = prev_quarter_close(period)
+    if src is None:
+        return None
+    return read_targets(targets_doc_path(outputs_root, src[0], src[1]))
 
 
 def read_targets(path):
@@ -100,23 +113,23 @@ def read_targets(path):
     return targets or None
 
 
-def ensure_blank_next_quarter(templates_dir, inputs_root, year, quarter):
-    """On a quarter-closing run, drop a blank meeting Word into the closing month's
-    folder (e.g. inputs/2026-03/ for Q1). The studio fills its targets table after the
-    quarter meeting; those become the NEXT quarter's targets (carry-forward)."""
+def ensure_targets_doc(templates_dir, period_dir, year, quarter):
+    """On a quarter close, emit the blank targets Word into that quarter's OUTPUT folder
+    (period_dir, e.g. outputs/2026/רבעוני/2026-Q1/). The studio fills it after the quarter
+    meeting; those become the NEXT quarter's targets, read forward by find_targets. Created
+    ONLY if absent — the output folder is rebuilt every run, but a filled doc is preserved.
+    Returns the path when freshly emitted, else None (already present, or no template)."""
     if quarter is None:
         return None
-    closing_month = quarter * 3                       # Q1->3, Q2->6, Q3->9, Q4->12
-    folder = os.path.join(inputs_root, f"{year:04d}-{closing_month:02d}")
-    dest = os.path.join(folder, f"meeting-{year}-Q{quarter}.docx")
     src = os.path.join(templates_dir, "meeting-template-quarterly.docx")
     if not os.path.isfile(src):
         return None
-    os.makedirs(folder, exist_ok=True)
-    if any(f.lower().endswith(".docx") for f in os.listdir(folder)):
-        return None                                   # a meeting Word already there
+    dest = os.path.join(period_dir, targets_doc_name(year, quarter))
+    if os.path.isfile(dest):
+        return None                                   # a (maybe filled) doc is already here
+    os.makedirs(period_dir, exist_ok=True)
     shutil.copyfile(src, dest)
-    return os.path.relpath(dest, os.path.dirname(inputs_root))
+    return dest
 
 
 # map dashboard metric key -> (label, computed value) for the targets block

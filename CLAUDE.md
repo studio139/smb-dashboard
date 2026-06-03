@@ -53,7 +53,9 @@ takes several arguments at once (batch, e.g. `run.py 2026-01 2026-02`).
    When one-off expenses begin, the agent pauses here for confirmation before computing.
 3. **Validate** (graded — below); stop on blocking.
 4. **Compute** all metrics (deterministic).
-5. **Targets:** if `inputs/meetings/<quarter>.docx` exists, pull its targets table; else skip.
+5. **Targets:** read forward the *previous* quarter-closing month's targets Word from the outputs tree
+   (`outputs/<year>/רבעוני/<prev-Q>/<prev-Q>_יעדים.docx`; cross-year aware — Jan–Mar read the prior year's
+   Q4); a missing or still-blank doc → skip.
 6. **Render** a fresh, high-end workbook from `generator.py` + `style_config.py` (NOT a static template),
    all numbers sourced through `viewmodel.py` (the single parity source the HTML shares):
    a leading **`סקירה` (overview)** sheet — KPI cards (profit colored by sign) → the two income pictures
@@ -75,12 +77,17 @@ takes several arguments at once (batch, e.g. `run.py 2026-01 2026-02`).
    a self-contained, deterministic **tabbed interactive BI dashboard** (inline CSS + inline JS for behavior
    + inline SVG charts) built from the same data — **JS drives only interaction/display, never numbers** —
    so every figure matches the Excel by construction. Emit the missing-items report. On quarterly runs,
-   also drop a blank next-quarter Word into `inputs/meetings/`.
+   also emit a blank **next-quarter targets Word** INTO that quarter's output folder
+   (`outputs/<year>/רבעוני/<period>/<period>_יעדים.docx`) — created only if absent, so a doc the studio
+   has filled is never overwritten (the folder is rebuilt every run; the targets Word is preserved).
 8. **Publish & back up (both gated — never fail the run, same pattern as the old optional steps):**
    upload the period's `xlsx`+`html` to Google Drive (Shared-Drive `ניתוחים וישיבות הנהלה` →
-   `דשבורדים/<year>/<type>/<period>/`, find-or-create each level) via the **GWS CLI** as `studio@smb-arch.com`; then
-   `git add -A && commit && push` the whole project to the private **GitHub** backup
-   (`studio139/smb-dashboard`). On missing tool / no auth / offline each prints a notice and continues.
+   `דשבורדים/<year>/<type>/<period>/`, find-or-create each level) via the **GWS CLI** as `studio@smb-arch.com`;
+   on a quarter close the **targets Word** is mirrored to that same Drive folder **without overwriting** an
+   existing one. Then `git add -A && commit && push` the whole project to the private **GitHub** backup
+   (`studio139/smb-dashboard`) — `outputs/` is git-ignored *except* the targets Word (the only `.docx` there),
+   so a filled targets doc is backed up to **both** Drive and GitHub. On missing tool / no auth / offline each
+   prints a notice and continues.
    *(The GWS OAuth app is now in **Production** — the token no longer expires every 7 days.)* See `publish.py`.
 
 ## Determinism
@@ -127,10 +134,16 @@ impossible total (net>gross, conversion>100%). NON-BLOCKING (continue + record �
 single missing field · unmatched join rows · single outlier. Every run ends with a missing-items report.
 
 ## Targets & timeline (`scripts/targets.py`)
-Source = the targets **table** in the quarterly Word (`inputs/meetings/<quarter>.docx`); metric names
-match dashboard metrics. Insights/initiatives are human text — never parsed for numbers. Q1 quarterly +
-April monthly = no targets yet. At Q1 close a blank Q2 template is emitted; once filled, Q2 targets
-show as target-vs-actual from month 5.
+The targets **table** lives in a Word that is now an **output** of the quarter-closing month, in that
+quarter's folder (`outputs/<year>/רבעוני/<period>/<period>_יעדים.docx`) — one per quarter, per year. The
+agent **emits it blank** at quarter close (only if absent — a filled doc is never overwritten); the studio
+fills the **next** quarter's targets after the quarterly meeting (fill the *local* copy — that's the one read
+forward). Each report **reads forward** the *previous* quarter-closing doc (`prev_quarter_close`): a report in
+quarter Q reads Q-1's doc — **cross-year aware**, so Jan–Mar of year Y read `…/<Y-1>/רבעוני/<Y-1>-Q4/`. One
+doc serves all three months of its target quarter (that single mapping is the carry-forward). Metric names
+match dashboard metrics; insights/initiatives are human text — never parsed for numbers. A missing or
+still-blank doc → no targets (no crash). Q1 quarterly + April monthly = no targets yet; once the Q1 doc is
+filled, Q2's reports (Apr–Jun) show target-vs-actual. The Word template structure is unchanged.
 
 ## Modules (`scripts/`)
 `loader` · `metrics` · `validator` · `targets` · `viewmodel` (the single parity source — month+summary

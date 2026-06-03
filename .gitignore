@@ -1,5 +1,9 @@
-# Regenerable / transient — not backed up (reports are also auto-published to Drive)
-outputs/
+# Regenerable / transient — Drive-backed (reports are also auto-published to Drive). The one
+# exception: the studio-authored targets Word (the only .docx under outputs/) is NOT
+# regenerable, so it is tracked in git too — Drive + GitHub both back it up.
+outputs/**
+!outputs/**/
+!outputs/**/*.docx
 verification_report.md
 _test/
 __pycache__/
