@@ -216,7 +216,7 @@ def to_drive_preserve(files, segments):
                 done.append(name + " (uploaded)")
             else:
                 done.append(name + " (failed)")
-        return "Drive targets → %s/: %s" % (rel, ", ".join(done) if done else "(none)")
+        return "Drive targets to %s/: %s" % (rel, ", ".join(done) if done else "(none)")
     except Exception as e:
         return "Drive targets skipped — %s" % e
 
